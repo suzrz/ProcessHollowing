@@ -4,6 +4,7 @@
 * https://medium.com/cyber-unbound/process-replacement-a-k-a-process-hollowing-38d012a7facb
 * https://www.codeproject.com/Articles/19685/Get-Process-Info-with-NtQueryInformationProcess
 * https://gist.github.com/hugsy/f60ca6f01839bb56e3cc1ffa0b4e2f75
+* https://unprotect.it/snippet/reflective-dll-injection/87/
 * 
 */
 #include <iostream>
