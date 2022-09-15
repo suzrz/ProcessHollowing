@@ -121,12 +121,12 @@ int main(int argc, char **argv) {
 
         while (relocOffset < relocTable.Size) {
             PBASE_RELOCATION_BLOCK relocationBlock = (PBASE_RELOCATION_BLOCK)((DWORD) payloadBytesBuff + payloadRelocTableRaw + relocOffset);
-            DWORD relocCnt = (relocationBlock->BlockSize - sizeof(BASE_RELOCATION_BLOCK) / sizeof(BASE_RELOCATION_ENTRY));
+            DWORD relocCnt = ((relocationBlock->BlockSize - sizeof(BASE_RELOCATION_BLOCK)) / sizeof(BASE_RELOCATION_ENTRY));
             PBASE_RELOCATION_ENTRY relocEntries = (PBASE_RELOCATION_ENTRY)((DWORD)payloadBytesBuff + payloadRelocTableRaw + relocOffset);
 
             relocOffset += sizeof(BASE_RELOCATION_BLOCK);
 
-            for (DWORD j = 0; j < relocCnt - 1; j++) {
+            for (DWORD j = 0; j < relocCnt; j++) {
                 if (relocOffset >= relocTable.Size) {
                     break;
                 }
