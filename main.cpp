@@ -120,20 +120,22 @@ int main(int argc, char **argv) {
 
         while (relocOffset < relocTable.Size) {
             PBASE_RELOCATION_BLOCK relocationBlock = (PBASE_RELOCATION_BLOCK)((DWORD) payloadBytesBuff + payloadRelocTableRaw + relocOffset);
-
-            relocOffset += sizeof(BASE_RELOCATION_BLOCK);
             DWORD relocCnt = (relocationBlock->BlockSize - sizeof(BASE_RELOCATION_BLOCK) / sizeof(BASE_RELOCATION_ENTRY));
-
             PBASE_RELOCATION_ENTRY relocEntries = (PBASE_RELOCATION_ENTRY)((DWORD)payloadBytesBuff + payloadRelocTableRaw + relocOffset);
 
-            for (DWORD y = 0; y < relocCnt; y++) {
+            relocOffset += sizeof(BASE_RELOCATION_BLOCK);
+
+            for (DWORD j = 0; j < relocCnt - 1; j++) {
+                if (relocOffset >= relocTable.Size) {
+                    break;
+                }
                 relocOffset += sizeof(BASE_RELOCATION_ENTRY);
 
-                if (relocEntries[y].Type == 0) {
+                if (relocEntries[j].Type == 0) {
                     continue;
                 }
 
-                DWORD patchAddr = relocationBlock->PageAddress + relocEntries[y].Offset;
+                DWORD patchAddr = relocationBlock->PageAddress + relocEntries[j].Offset;
                 DWORD patchBuffer = 0;
 
                 ReadProcessMemory(hostProc, (LPCVOID)((DWORD)hostImageBase + patchAddr), &patchBuffer, sizeof(DWORD), &bytesRead); 
